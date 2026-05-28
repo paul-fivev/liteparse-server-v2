@@ -1,6 +1,28 @@
 import { LiteParse, type LiteParseConfig } from "@llamaindex/liteparse";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { PrefixedLogger } from "./logger";
+import { writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, extname } from "node:path";
+import { randomUUID } from "node:crypto";
+
+// LiteParse 2.0 infers the document format from the file EXTENSION. A bare
+// in-memory Buffer is treated as ".bin" and rejected ("unsupported file
+// format"), so we write the upload to a temp file with its original extension
+// and hand LiteParse the path instead.
+async function writeTemp(file: Express.Multer.File): Promise<string> {
+  const ext = extname(file.originalname) || ".bin";
+  const p = join(tmpdir(), `lp-${randomUUID()}${ext}`);
+  await writeFile(p, file.buffer);
+  return p;
+}
+async function rmTemp(p: string): Promise<void> {
+  try {
+    await unlink(p);
+  } catch {
+    /* best-effort cleanup */
+  }
+}
 import {
   tracer,
   parseDurationMs,
@@ -45,8 +67,9 @@ export async function parse({
     );
 
     const startTime = performance.now();
+    const tmpPath = await writeTemp(file);
     try {
-      const result = await lit.parse(file.buffer);
+      const result = await lit.parse(tmpPath);
       const duration = performance.now() - startTime;
 
       parseDurationMs.record(duration, { "parse.mode": mode });
@@ -74,6 +97,8 @@ export async function parse({
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.end();
       throw err;
+    } finally {
+      await rmTemp(tmpPath);
     }
   });
 }
@@ -103,9 +128,10 @@ export async function screenshot({
     const lit = new LiteParse(config);
     logger.debug(`Starting to screenshot: ${file.originalname}`);
 
+    const tmpPath = await writeTemp(file);
     try {
       const startTime = performance.now();
-      const result = await lit.screenshot(file.buffer, pageNumbers);
+      const result = await lit.screenshot(tmpPath, pageNumbers);
       const duration = performance.now() - startTime;
 
       screenDurationMs.record(duration);
@@ -131,6 +157,8 @@ export async function screenshot({
       span.end();
       logger.error(`An error occurred: ${err}`);
       throw err;
+    } finally {
+      await rmTemp(tmpPath);
     }
   });
 }
