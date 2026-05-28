@@ -46,7 +46,7 @@ export async function parse({
 
     const startTime = performance.now();
     try {
-      const result = await lit.parse(file.buffer, true);
+      const result = await lit.parse(file.buffer);
       const duration = performance.now() - startTime;
 
       parseDurationMs.record(duration, { "parse.mode": mode });
@@ -105,7 +105,7 @@ export async function screenshot({
 
     try {
       const startTime = performance.now();
-      const result = await lit.screenshot(file.buffer, pageNumbers, true);
+      const result = await lit.screenshot(file.buffer, pageNumbers);
       const duration = performance.now() - startTime;
 
       screenDurationMs.record(duration);
