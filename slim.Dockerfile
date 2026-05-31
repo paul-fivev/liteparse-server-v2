@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libvips42 \
     ca-certificates \
     libreoffice \
+    default-jre-headless \
     imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
